@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Percentage of Rent-Stabilized Buildings</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+
+  <style>
+    :root {
+      --paper: #FAF9F7;
+      --ink: #111;
+      --sub: #555;
+      --mn: #2B4C7E;
+      --bx: #D63A24;
+      --bk: #E9A93A;
+      --qn: #3D9C74;
+      --si: #7A4694;
+      --grid: #DCDAD6;
+    }
+
+    html,
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: -.2px;
+      margin: 28px 0 4px;
+    }
+
+    p.subtitle {
+      text-align: center;
+      color: var(--sub);
+      font-size: 14px;
+      margin: 0 0 8px;
+    }
+
+    #legend {
+      text-align: center;
+      font-size: 13px;
+      color: var(--sub);
+      margin-bottom: 16px;
+    }
+
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      margin: 0 8px;
+    }
+
+    .legend-swatch {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-right: 6px;
+      display: inline-block;
+    }
+
+    #viewToggle {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    button.mode {
+      border: none;
+      background: #eee;
+      padding: 6px 14px;
+      margin: 0 4px;
+      border-radius: 6px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all .25s ease;
+    }
+
+    button.mode.active {
+      background: var(--mn);
+      color: #fff;
+    }
+
+    button.mode:hover {
+      background: #ccc;
+    }
+
+    svg {
+      display: block;
+      margin: 0 auto;
+      max-width: 1280px;
+      height: 900px;
+      cursor: default;
+    }
+
+    .tooltip {
+      position: absolute;
+      background: rgba(255, 255, 255, 0.97);
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 13px;
+      color: #111;
+      pointer-events: none;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+    }
+
+    a.back {
+      position: fixed;
+      top: 16px;
+      left: 20px;
+      color: var(--sub);
+      text-decoration: none;
+      font-size: 14px;
+      z-index: 10;
+    }
+
+    a.back:hover {
+      color: var(--mn);
+    }
+
+    .bin-label {
+      cursor: default;
+      user-select: none;
+    }
+
+    .bin-label text {
+      font-size: 12px;
+      font-weight: 700;
+      fill: #111;
+      paint-order: stroke fill;
+      stroke: #fff;
+      stroke-width: 2.4px;
+      stroke-linejoin: round;
+      text-rendering: geometricPrecision;
+    }
+
+    .divider-line {
+      stroke: #777;
+      stroke-width: 1.6;
+      stroke-dasharray: 4, 4;
+      opacity: 0;
+    }
+
+    .age-label {
+      font-size: 13px;
+      font-weight: 600;
+      fill: #333;
+      opacity: 0;
+      text-shadow: 0 1px 3px rgba(255, 255, 255, 0.8);
+    }
+
+    .viz-scale {
+      transform: scale(0.9);
+      transform-origin: center top;
+    }
+
+    .export-btn {
+      background: #f3f2f0;
+      border: 1px solid #d6d4cf;
+      padding: 6px 16px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      color: #444;
+      cursor: pointer;
+      transition: all 0.25s ease;
+    }
+
+    .export-btn:hover {
+      background: #e7e5e2;
+      border-color: #c9c7c2;
+      color: #111;
+    }
+
+    .export-btn:active {
+      background: #dedcd9;
+      border-color: #bbb;
+    }
+  </style>
+</head>
+
+<body>
+
+  <a href="../index.html" class="back">← Back to Gallery</a>
+
+  <h1>Percentage of Rent-Stabilized Buildings</h1>
+  <p class="subtitle">Each dot = a building · Distance = % stabilized</p>
+
+  <div id="legend">
+    <span class="legend-item"><span class="legend-swatch" style="background:#2B4C7E"></span>Manhattan</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:#D63A24"></span>Bronx</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:#E9A93A"></span>Brooklyn</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:#3D9C74"></span>Queens</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:#7A4694"></span>Staten Island</span>
+  </div>
+
+  <div id="viewToggle">
+    <button class="mode active" data-mode="dispersed">Dispersed</button>
+    <button class="mode" data-mode="borough">By Borough</button>
+    <button class="mode" data-mode="age">By Building Age</button>
+  </div>
+  <!-- <div id="exportArea" style="text-align:center; margin-bottom:18px;">
+    <button id="saveSVG" class="export-btn">Download SVG</button>
+  </div> -->
+
+
+  <svg id="viz" preserveAspectRatio="xMidYMid meet">
+    <g class="viz-scale"></g>
+  </svg>
+
+  <div class="tooltip" style="opacity:0;"></div>
+
+
+  <script>
+    const width = 1280, height = 950;
+    const svg = d3.select("#viz").attr("viewBox", [0, -60, width, height]);
+    const g = svg.select(".viz-scale");
+    const tooltip = d3.select(".tooltip");
+    const center = [width / 2, (height / 2) - 30];
+    const radiusMax = 380;
+
+    const boroColor = d3.scaleOrdinal()
+      .domain(["MN", "BX", "BK", "QN", "SI"])
+      .range(["#2B4C7E", "#D63A24", "#E9A93A", "#3D9C74", "#7A4694"]);
+
+    const thresholds = [0.25, 0.50, 0.75, 0.90, 1.00];
+    const labels = ["0–25%", "25–50%", "50–75%", "75–90%", "90%+"];
+
+    function binIndex(s) {
+      if (s < 0.25) return 0;
+      if (s < 0.50) return 1;
+      if (s < 0.75) return 2;
+      if (s < 0.90) return 3;
+      return 4;
+    }
+
+    const rScale = d3.scaleLinear().domain([0, 1]).range([60, radiusMax]);
+
+    const boroughAngles = {
+      MN: 0,
+      BX: 72 * (Math.PI / 180),
+      BK: 144 * (Math.PI / 180),
+      QN: 216 * (Math.PI / 180),
+      SI: 288 * (Math.PI / 180)
+    };
+
+    const bandLayer = g.append("g")
+      .attr("transform", `translate(${center[0]},${center[1]})`);
+
+    thresholds.forEach((high, i) => {
+      bandLayer.append("circle")
+        .attr("r", rScale(high))
+        .attr("fill", "#000")
+        .attr("fill-opacity", i % 2 === 0 ? 0.012 : 0.025)
+        .attr("stroke", "#DCDAD6")   // inline var(--grid) so export won't strip it
+        .attr("stroke-dasharray", "2,3");
+
+    });
+
+    const dotLayer = g.append("g");
+    const labelLayer = g.append("g")
+      .attr("class", "bin-labels")
+      .attr("transform", `translate(${center[0]},${center[1]})`);
+
+    const divider = g.append("line")
+      .attr("x1", center[0] - radiusMax - 60)
+      .attr("x2", center[0] + radiusMax + 60)
+      .attr("y1", center[1])
+      .attr("y2", center[1])
+      .attr("stroke", "#777")
+      .attr("stroke-width", 1.6)
+      .attr("stroke-dasharray", "4,4")
+      .attr("opacity", 0);   // start hidden, same behavior
+
+    const preLabel = g.append("text")
+      .attr("class", "age-label")
+      .attr("x", center[0])
+      .attr("y", center[1] + 45)
+      .attr("text-anchor", "middle")
+      .text("Pre-1974");
+
+    const postLabel = g.append("text")
+      .attr("class", "age-label")
+      .attr("x", center[0])
+      .attr("y", center[1] - 20)
+      .attr("text-anchor", "middle")
+      .text("1974 and on");
+
+    let zoomed = false;
+    let activeDot = null;
+
+    function zoomTo(x, y, scale = 5, duration = 650) {
+      const viewWidth = width / scale,
+        viewHeight = height / scale;
+      const vx = x - viewWidth / 2;
+      const vy = y - viewHeight / 2;
+      svg.transition().duration(duration).ease(d3.easeCubicInOut)
+        .attr("viewBox", [vx, vy, viewWidth, viewHeight]);
+      zoomed = true;
+    }
+
+    function resetZoom(duration = 500) {
+      svg.transition().duration(duration).ease(d3.easeCubicInOut)
+        .attr("viewBox", [0, -60, width, height]);
+      activeDot = null;
+      zoomed = false;
+    }
+
+    d3.csv("./data/rent_stab_no_tax_exempt_no_coop_condo.csv", d3.autoType).then(data => {
+      const normalize = b => {
+        if (!b) return null;
+        b = b.toUpperCase();
+        if (b.includes("MANH")) return "MN";
+        if (b.includes("BRONX")) return "BX";
+        if (b.includes("BROOK")) return "BK";
+        if (b.includes("QUEE")) return "QN";
+        if (b.includes("STAT")) return "SI";
+        if (["MN", "BX", "BK", "QN", "SI"].includes(b)) return b;
+        return null;
+      };
+
+      data.forEach(d => d.Borough = normalize(d.Borough));
+      const filtered = data.filter(d => !isNaN(d.rent_stab_share) && d.Borough);
+
+      const ANGLE_SPREAD = 35 * (Math.PI / 180);
+      const PAD_INNER = 6,
+        PAD_OUTER = 6;
+
+      filtered.forEach(d => {
+        const idx = binIndex(d.rent_stab_share);
+        d.bin = idx;
+
+        const innerShare = (idx === 0) ? 0 : thresholds[idx - 1];
+        const outerShare = thresholds[idx];
+
+        d.rLow = rScale(innerShare) + PAD_INNER;
+        d.rHigh = rScale(outerShare) - PAD_OUTER;
+
+        const θd = Math.random() * 2 * Math.PI;
+        const rd = d3.randomUniform(d.rLow, d.rHigh)();
+        d.dispX = center[0] + Math.cos(θd) * rd;
+        d.dispY = center[1] + Math.sin(θd) * rd;
+
+        const baseAngle = boroughAngles[d.Borough] || 0;
+        const offset = (Math.random() - 0.5) * ANGLE_SPREAD;
+        const θb = baseAngle + offset;
+        const rb = d3.randomUniform(d.rLow, d.rHigh)();
+        d.boroX = center[0] + Math.cos(θb) * rb;
+        d.boroY = center[1] + Math.sin(θb) * rb;
+
+        const isPre = d.building_age_category && d.building_age_category.includes("Pre");
+
+        const θa = isPre ?
+          Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 0.9 :
+          -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 0.9;
+
+        const ra = d3.randomUniform(d.rLow, d.rHigh)();
+        d.ageX = center[0] + Math.cos(θa) * ra;
+        d.ageY = center[1] + Math.sin(θa) * ra;
+
+        d.curX = d.dispX;
+        d.curY = d.dispY;
+        d.tgtX = d.dispX;
+        d.tgtY = d.dispY;
+      });
+
+      let currentMode = "dispersed";
+
+      function baseX(d) {
+        return currentMode === "dispersed" ? d.dispX :
+          currentMode === "borough" ? d.boroX :
+            d.ageX;
+      }
+
+      function baseY(d) {
+        return currentMode === "dispersed" ? d.dispY :
+          currentMode === "borough" ? d.boroY :
+            d.ageY;
+      }
+
+      const dots = dotLayer.selectAll("circle")
+        .data(filtered)
+        .join("circle")
+        .attr("r", 0)
+        .attr("cx", d => d.curX)
+        .attr("cy", d => d.curY)
+        .attr("fill", d => boroColor(d.Borough))
+        .attr("opacity", 0.82)
+        .transition().duration(700)
+        .attr("r", 1.2)
+        .selection();
+
+      dots.on("mousemove", (event, d) => {
+        const share = (d.rent_stab_share * 100).toFixed(1);
+        tooltip.style("opacity", 1)
+          .html(`<strong>${share}% stabilized</strong><br><span style="color:#777">${d.Address || "Property"}, ${d.Borough}</span><br>Age: <em>${d.building_age_category}</em>`)
+          .style("left", (event.pageX + 14) + "px")
+          .style("top", (event.pageY - 30) + "px");
+      }).on("mouseout", () => tooltip.style("opacity", 0))
+        .on("click", (event, d) => {
+          event.stopPropagation();
+          if (activeDot === d && zoomed) {
+            resetZoom();
+          } else {
+            activeDot = d;
+            zoomTo(+d3.select(event.currentTarget).attr("cx"), +d3.select(event.currentTarget).attr("cy"), 5.0);
+          }
+        });
+
+      svg.on("click", () => {
+        if (zoomed) resetZoom();
+      });
+
+      /* === LABELS + UNDERLINES WITH EXACT RING CENTERING AND CONDITIONAL HOVER === */
+      const LABEL_X = -center[0] + 70;
+      const CENTER_LINE_LENGTH = Math.abs(LABEL_X);
+
+      const bandCenters = [
+        (rScale(0) + rScale(0.25)) / 2,
+        (rScale(0.25) + rScale(0.50)) / 2,
+        (rScale(0.50) + rScale(0.75)) / 2,
+        (rScale(0.75) + rScale(0.90)) / 2,
+        (rScale(0.90) + rScale(1.00)) / 2
+      ];
+
+      const sorted = labels.slice().reverse();
+
+      function formatCount(n) {
+        if (n >= 1e6) return (n / 1e6).toFixed(1).replace(/\.0$/, "") + "M";
+        if (n >= 1e3) return (n / 1e3).toFixed(1).replace(/\.0$/, "") + "K";
+        return n.toString();
+      }
+
+      sorted.forEach((label, i) => {
+
+        const ringIndex = labels.length - 1 - i;
+        const bandCenterY = -bandCenters[ringIndex];
+
+        const gLabel = labelLayer.append("g")
+          .attr("class", "bin-label")
+          .attr("transform", `translate(${LABEL_X}, ${bandCenterY})`);
+
+        gLabel.append("text")
+          .attr("text-anchor", "start")
+          .attr("x", 0)
+          .attr("y", -3)
+          .text(label.toUpperCase());
+
+        gLabel.append("line")
+          .attr("x1", 0)
+          .attr("y1", 0)
+          .attr("x2", CENTER_LINE_LENGTH)
+          .attr("y2", 0)
+          .attr("stroke", "#333")
+          .attr("stroke-width", 1)
+          .attr("opacity", 0.25);
+
+        /* CONDITIONAL: bins 3 & 4 highlight TOGETHER */
+        gLabel.on("mouseenter", () => {
+          const highlight = d => {
+            if (ringIndex === 3 || ringIndex === 4) {
+              return (d.bin === 3 || d.bin === 4) ? 0.9 : 0.08;
+            }
+            return d.bin === ringIndex ? 0.9 : 0.08;
+          };
+
+          dots.transition().duration(150)
+            .attr("opacity", highlight);
+        });
+
+        gLabel.on("mouseleave", () => {
+          dots.transition().duration(250).attr("opacity", 0.82);
+        });
+
+        // === BIN COUNTS FOR MICRO BAR CHARTS ===
+        const binCounts = d3.rollup(filtered, v => v.length, d => d.bin);
+        const maxCount = d3.max(Array.from(binCounts.values()));
+
+        // scale for bar width (80px max but you can change)
+        const barScale = d3.scaleLinear()
+          .domain([0, maxCount])
+          .range([0, 80]);
+
+
+        // label text
+        gLabel.append("text")
+          .attr("text-anchor", "start")
+          .attr("x", 0)
+          .attr("y", -3)
+          .text(label.toUpperCase());
+
+
+        // === MICRO BAR NEXT TO LABEL, ABOVE UNDERLINE ===
+
+        // retrieve bin count
+        const thisCount = binCounts.get(ringIndex) || 0;
+
+        // horizontal offset from label (adjust if your label width changes)
+        const LABEL_OFFSET = 68;   // shifts bar to the right of label
+
+        // set bar height
+        const BAR_H = 7;
+
+        // vertical offset above underline (underline sits at y=0)
+        // our bar sits at y = -BAR_H - 2 for clean 2px gap
+        const BAR_Y = -BAR_H - 2;
+
+        // container for bar & number
+        const barTop = gLabel.append("g")
+          .attr("class", "bar-top")
+          .attr("transform", `translate(${LABEL_OFFSET}, ${BAR_Y})`);
+
+        // ghost background bar
+        barTop.append("rect")
+          .attr("class", "bar-bg")
+          .attr("width", 80)
+          .attr("height", BAR_H)
+          .attr("fill", "#111")
+          .attr("opacity", 0.05)
+          .attr("rx", 3);
+
+        // actual filled bar
+        barTop.append("rect")
+          .attr("class", "bar-fill")
+          .attr("width", barScale(thisCount))
+          .attr("height", BAR_H)
+          .attr("fill", "#111")
+          .attr("opacity", 0.28)
+          .attr("rx", 3);
+
+        // ensure text is always to the right of the bar, never on top
+        const barWidth = barScale(thisCount);
+
+        // minimum 8px to the right of full bar OR to the right edge if bar is small
+        const textX = Math.max(barWidth + 6, 6 + 80 + 4);
+        //          bar width + gap,   OR   background width + padding
+
+        barTop.append("text")
+          .attr("class", "bar-text")
+          .attr("x", textX)
+          .attr("y", BAR_H - 1)
+          .attr("font-size", 11)
+          .attr("fill", "#333")
+          .text(formatCount(thisCount));
+
+
+
+      });
+
+      // Function for defining Grouping Logics for mini bar graphs
+      function computeBinCounts(mode) {
+        if (mode === "dispersed") {
+          // overall bin counts
+          return d3.rollup(filtered, v => v.length, d => d.bin);
+        }
+
+        if (mode === "borough") {
+          // group by borough FIRST, then bin
+          return d3.rollup(filtered,
+            v => d3.rollup(v, vv => vv.length, d => d.bin),
+            d => d.Borough
+          );
+        }
+
+        if (mode === "age") {
+          // two groups: pre-1974, post-1974
+          return d3.rollup(filtered,
+            v => d3.rollup(v, vv => vv.length, d => d.bin),
+            d => d.building_age_category.includes("Pre") ? "pre" : "post"
+          );
+        }
+      }
+
+      // for mini bar graphs
+      function updateBarCharts() {
+        labelLayer.selectAll(".bar-top").each(function (_, i) {
+          const ringIndex = labels.length - 1 - i;
+          const count = getCountForBin(ringIndex);
+          const barWidth = barScale(count);
+
+          // update bar width
+          d3.select(this).select(".bar-fill")
+            .transition().duration(450)
+            .attr("width", barWidth);
+
+          // update count text + position
+          const textX = Math.max(barWidth + 6, 6 + 80 + 4);
+
+          d3.select(this).select(".bar-text")
+            .transition().duration(450)
+            .attr("x", textX)
+            .text(formatCount(count));
+        });
+      }
+
+
+
+      /* === MODE SWITCHING (ANIMATED FORMATIONS RESTORED) === */
+      function switchMode(mode) {
+        currentMode = mode;
+        d3.selectAll("button.mode").classed("active", false);
+        d3.select(`button[data-mode='${mode}']`).classed("active", true);
+
+        dots.transition().duration(700).ease(d3.easeCubicInOut)
+          .attr("cx", d => (d.curX = baseX(d)))
+          .attr("cy", d => (d.curY = baseY(d)));
+
+        const showAge = mode === "age";
+        divider.transition().duration(500).style("opacity", showAge ? 1 : 0);
+        preLabel.transition().duration(500).style("opacity", showAge ? 1 : 0);
+        postLabel.transition().duration(500).style("opacity", showAge ? 1 : 0);
+
+        if (zoomed) resetZoom();
+      }
+
+      d3.selectAll("button.mode").on("click", function () {
+        switchMode(this.getAttribute("data-mode"));
+      });
+
+    });
+
+
+    // === EXPORT SVG FUNCTION ===
+    document.getElementById("saveSVG").addEventListener("click", () => {
+      const svgNode = document.getElementById("viz").cloneNode(true);
+
+      svgNode.removeAttribute("width");
+      svgNode.removeAttribute("height");
+
+      const serializer = new XMLSerializer();
+      let source = serializer.serializeToString(svgNode);
+
+      if (!source.match(/^<svg[^>]+xmlns=/)) {
+        source = source.replace(/^<svg/, '<svg xmlns="http://www.w3.org/2000/svg"');
+      }
+
+      const filename = "rent_stabilized_visualization.svg";
+
+      const blob = new Blob([source], { type: "image/svg+xml;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    });
+
+  </script>
+</body>
+
+</html>
+
+</html>

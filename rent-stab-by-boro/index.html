@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Rent-Stabilized Units by Borough</title>
+
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dom-to-image-more@2.8.0/dist/dom-to-image-more.min.js"></script>
+
+  <style>
+    :root {
+      --paper: #FAF9F7;
+      --ink: #111;
+      --sub: #555;
+      --active: #2B4C7E;
+
+      /* colors no longer used for buildings */
+      --bk: #2B4C7E;
+      --bx: #D63A24;
+      --mn: #E9A93A;
+      --qn: #3D9C74;
+      --si: #7A4694;
+      --slit: rgba(255, 255, 255, 0.60);
+    }
+
+    html,
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    .wrap {
+      max-width: 1000px;
+      margin: 40px auto;
+      padding: 0 20px;
+    }
+
+    h1 {
+      font-weight: 700;
+      letter-spacing: -.2px;
+      margin: 0 0 8px;
+      font-size: 26px;
+    }
+
+    .deck {
+      color: var(--sub);
+      margin: 0 0 15px;
+      font-size: 15px;
+      line-height: 1.45;
+    }
+
+    svg {
+      width: 100%;
+      height: auto;
+      display: block;
+      background: transparent;
+      border: 1px solid #eee;
+    }
+
+    .annotation {
+      font-size: 9.5px;
+      fill: #555;
+      text-anchor: start;
+      font-style: italic;
+    }
+
+    .caption {
+      margin: 12px 0 0;
+      color: var(--sub);
+      font-size: 13px;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      margin: 10px 0 22px;
+      font-size: 13px;
+      color: #333;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .legend-color {
+      width: 12px;
+      height: 12px;
+      border-radius: 2px;
+    }
+
+    .tooltip {
+      position: absolute;
+      background: #fff;
+      border: 1px solid #ddd;
+      border-left: 5px solid var(--bk);
+      padding: 10px 12px;
+      font-size: 13px;
+      font-weight: 500;
+      pointer-events: none;
+      border-radius: 6px;
+      color: #111;
+      box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
+      opacity: 0;
+      transition: opacity .15s ease-out;
+    }
+
+    .tooltip strong {
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .lossLabel {
+      font-size: 9.5px;
+      font-weight: 600;
+      text-anchor: end;
+    }
+
+    .buttons {
+      display: flex;
+      gap: 10px;
+      margin: 20px 0;
+    }
+
+    button {
+      background: #2B4C7E;
+      color: #fff;
+      border: none;
+      padding: 8px 14px;
+      font-size: 13px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+
+    button:hover {
+      background: #1f3559;
+    }
+
+    .noprint {
+      user-select: none;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap" id="exportFrame">
+
+    <a href="../" class="noprint" style="font-size:13px;color:#2B4C7E;text-decoration:none;">← Back to Gallery</a>
+    <br><br><br>
+
+    <h1>Rent-Stabilized Units Year-to-Year Change by Borough Covers 2007–2020 (Pre-HSTPA) and 2007–2023 (Post-HSTPA)
+    </h1>
+
+    <p class="deck">
+      Each building’s height shows total rent-stabilized units. Opacity reflects whether units increased or declined
+      from the prior year. Window slits are a visual shorthand for apartments in rent-stabilized buildings.
+    </p>
+
+    <div class="legend" id="legend"></div>
+
+    <!-- Download Buttons for PNG or SVG -->
+    <!-- <div class="buttons noprint">
+      <button id="downloadPNG">Download PNG (Transparent)</button>
+      <button id="downloadSVG">Download SVG (Transparent)</button>
+    </div> -->
+
+    <svg id="viz"></svg>
+
+    <p class="caption"><em>Source:</em> ANHD analysis of NYC Rent Guidelines Board data (2007–2023)</p>
+  </div>
+
+  <div class="tooltip" id="tooltip"></div>
+
+  <script>
+    d3.csv("./data/rent_stab_yeartoyear_change_boros_updated.csv", d3.autoType).then(data => {
+
+      const boroughs = ["Brooklyn", "Bronx", "Manhattan", "Queens", "Staten Island"];
+
+      const colors = new Map([
+        ["Brooklyn", "#2B4C7E"],
+        ["Bronx", "#D63A24"],
+        ["Manhattan", "#E9A93A"],
+        ["Queens", "#3D9C74"],
+        ["Staten Island", "#7A4694"]
+      ]);
+
+      /* Legend updates automatically since .style("background") uses map */
+      const legend = d3.select("#legend");
+      boroughs.forEach(b => {
+        const item = legend.append("div").attr("class", "legend-item");
+        item.append("div").attr("class", "legend-color").style("background", colors.get(b));
+        item.append("span").text(b);
+      });
+
+      const years = d3.range(2007, 2024);
+      const M = { top: 130, right: 40, bottom: 60, left: 100 };
+      const tileWidth = 32, rowGap = 8, rowHeight = 52;
+
+      const width = M.left + M.right + years.length * tileWidth;
+      const height = M.top + M.bottom + boroughs.length * (rowHeight + rowGap);
+
+      const svg = d3.select("#viz").attr("viewBox", [0, 0, width, height]);
+      const tooltip = d3.select("#tooltip");
+
+      const maxUnits = d3.max(data, d => d.TotalRentStabUnits);
+      const hScale = d3.scaleLinear().domain([0, maxUnits]).range([0, rowHeight - 5]);
+      const x = d3.scaleBand().domain(years).range([M.left, width - M.right]).padding(0.25);
+      const yRow = b => M.top + boroughs.indexOf(b) * (rowHeight + rowGap);
+
+      const yoyByKey = new Map(data.map(d => [`${d.Borough}-${d.Year}`, d.yoy_change]));
+
+      const gUI = svg.append("g"),
+        gBars = svg.append("g"),
+        gAxis = svg.append("g"),
+        gAnno = svg.append("g"),
+        gLabels = svg.append("g");
+
+      /*  Toggle by categories */
+      const centerX = width / 2;
+      const toggleY = M.top - 95;
+
+      const toggleGroup = gUI.append("g")
+        .attr("class", "nytft-toggle")
+        .attr("transform", `translate(${centerX - 90}, ${toggleY - 10})`)
+        .style("cursor", "pointer");
+
+      toggleGroup.append("line")
+        .attr("x1", 0).attr("x2", 180)
+        .attr("y1", 0).attr("y2", 0)
+        .attr("stroke", "#ccc");
+
+      toggleGroup.append("line")
+        .attr("x1", 90).attr("x2", 90)
+        .attr("y1", -10).attr("y2", 10)
+        .attr("stroke", "#ccc");
+
+      const activeUnderline = toggleGroup.append("line")
+        .attr("y1", 0).attr("y2", 0)
+        .attr("stroke", "#2B4C7E")
+        .attr("stroke-width", 2)
+        .attr("x1", 10).attr("x2", 80);
+
+      const preLabel = toggleGroup.append("text")
+        .attr("x", 45).attr("y", -4)
+        .attr("text-anchor", "middle")
+        .attr("font-size", 11)
+        .attr("font-weight", 600)
+        .attr("fill", "#111")
+        .text("Pre-HSTPA");
+
+      const postLabel = toggleGroup.append("text")
+        .attr("x", 135).attr("y", -4)
+        .attr("text-anchor", "middle")
+        .attr("font-size", 11)
+        .attr("font-weight", 600)
+        .attr("fill", "#999")
+        .text("Post-HSTPA");
+
+      let endYear = 2020;
+      function updateToggle() {
+        if (endYear === 2020) {
+          activeUnderline.attr("x1", 10).attr("x2", 80);
+          preLabel.attr("fill", "#111");
+          postLabel.attr("fill", "#999");
+        } else {
+          activeUnderline.attr("x1", 100).attr("x2", 170);
+          preLabel.attr("fill", "#999");
+          postLabel.attr("fill", "#111");
+        }
+      }
+
+      preLabel.on("click", () => {
+        if (endYear !== 2020) {
+          endYear = 2020;
+          updateToggle();
+          draw();
+        }
+      });
+
+      postLabel.on("click", () => {
+        if (endYear !== 2023) {
+          endYear = 2023;
+          updateToggle();
+          draw();
+        }
+      });
+
+      updateToggle();
+
+      const Tbars = () => d3.transition().duration(700).ease(d3.easeCubicOut);
+
+      function buildingPath(x0, topY, w, h) {
+        if (h <= 0)
+          return `M ${x0} ${topY} L ${x0 + w} ${topY} L ${x0 + w} ${topY} L ${x0} ${topY} Z`;
+
+        const roof = Math.min(6, h * 0.25);
+        const inset = Math.min(3, w * 0.25);
+
+        return `
+          M ${x0 + inset} ${topY}
+          L ${x0 + w - inset} ${topY}
+          L ${x0 + w} ${topY + roof}
+          L ${x0 + w} ${topY + h}
+          L ${x0} ${topY + h}
+          L ${x0} ${topY + roof}
+          Z
+        `;
+      }
+
+      /* ========================================================
+         COLOR FIX: WINDOW SLITS USE DIRECT RGBA (NO CSS var)
+         ======================================================== */
+      function addWindowSlits(gBar, x0, topY, w, h, animate) {
+        const slitSpacing = 6;
+        const marginTop = 6;
+        const slitWidth = w * 0.55;
+        let idx = 0;
+
+        for (let yy = topY + marginTop; yy < topY + h - 4; yy += slitSpacing) {
+          const slit = gBar.append("line")
+            .attr("x1", x0 + (w - slitWidth) / 2)
+            .attr("x2", x0 + (w - slitWidth) / 2 + slitWidth)
+            .attr("y1", yy)
+            .attr("y2", yy)
+            .attr("stroke", "rgba(255,255,255,0.60)")  <!-- FIXED HERE -->
+            .attr("stroke-width", 1)
+            .attr("opacity", animate ? 0 : 0.35);
+
+          if (animate) {
+            slit.transition().delay(80 * idx).duration(220).attr("opacity", 0.45);
+          }
+          idx += 1;
+        }
+      }
+
+
+      function draw() {
+        const boroughGroups = gBars.selectAll("g.boro-group").data(boroughs);
+        boroughGroups.enter().append("g").attr("class", "boro-group");
+
+        boroughs.forEach(boro => {
+          const g = gBars.select(`g.boro-group:nth-child(${boroughs.indexOf(boro) + 1})`);
+
+          const bd = data.filter(d => d.Borough === boro).sort((a, b) => a.Year - b.Year);
+          const visible = endYear === 2023 ? bd : bd.filter(d => d.Year <= 2020);
+
+          const bars = g.selectAll("g.bar")
+            .data(visible, d => `${d.Borough}-${d.Year}`);
+
+          bars.exit().remove();
+
+          const barsEnter = bars.enter().append("g").attr("class", "bar");
+
+          barsEnter.each(function (d) {
+            const gBar = d3.select(this);
+
+            const fullHeight = hScale(d.TotalRentStabUnits);
+            const rowTop = yRow(boro);
+            const rowBottom = rowTop + rowHeight;
+
+            const bandWidth = x.bandwidth();
+            const w = bandWidth * 0.82;
+            const xLeft = x(d.Year) + (bandWidth - w) / 2;
+
+            const yTopFull = rowTop + (rowHeight - fullHeight);
+
+            const key = `${d.Borough}-${d.Year}`;
+            const yoy = yoyByKey.get(key);
+            const baseOpacity = yoy < 0 ? 0.35 : 0.9;
+
+            const fillColor = colors.get(d.Borough);
+
+            const isAnimatedYear = (d.Year >= 2021 && endYear === 2023);
+
+            const path = gBar.append("path")
+              .attr("class", "bar-shape")
+              .attr("fill", fillColor)
+              .attr("opacity", baseOpacity);
+
+            if (isAnimatedYear) {
+              path
+                .attr("d", buildingPath(xLeft, rowBottom, w, 0))
+                .transition(Tbars())
+                .attrTween("d", function () {
+                  const hInterp = d3.interpolateNumber(0, fullHeight);
+                  return t => buildingPath(xLeft, rowBottom - hInterp(t), w, hInterp(t));
+                })
+                .on("end", () => addWindowSlits(gBar, xLeft, yTopFull, w, fullHeight, true));
+
+            } else {
+              path.attr("d", buildingPath(xLeft, yTopFull, w, fullHeight));
+              addWindowSlits(gBar, xLeft, yTopFull, w, fullHeight, false);
+            }
+
+            /* Tooltip */
+            path.on("mousemove", (event) => {
+              const prev = data.find(e => e.Borough === d.Borough && e.Year === d.Year - 1);
+              let ch = null;
+              if (prev && prev.TotalRentStabUnits) {
+                ch = ((d.TotalRentStabUnits - prev.TotalRentStabUnits) / prev.TotalRentStabUnits) * 100;
+              }
+              const sign = ch == null ? "±" : (ch < 0 ? "−" : "+");
+              const color = ch == null ? "#555" : (ch < 0 ? "#d63a24" : "#3d9c74");
+              const changeText = ch == null ? "base year" : `${Math.abs(ch).toFixed(2)}% ${ch < 0 ? "↓ loss" : "↑ gain"}`;
+
+              tooltip.style("opacity", 1)
+                .html(`<strong>${d.Borough}</strong> · ${d.Year}<br>
+                       ${d3.format(",")(d.TotalRentStabUnits)} units<br>
+                       <span style="color:${color};font-weight:600;">${sign} ${changeText}</span>`)
+                .style("left", (event.pageX + 12) + "px")
+                .style("top", (event.pageY - 28) + "px");
+            }).on("mouseout", () => tooltip.style("opacity", 0));
+          });
+        });
+
+        /* Borough labels (unchanged) */
+        const labelsData = boroughs.map(boro => {
+          const bd = data.filter(d => d.Borough === boro);
+          const d2023 = bd.find(d => d.Year === 2023);
+          const end = endYear === 2020 ? bd.find(d => d.Year === 2020) : d2023;
+          const pct = endYear === 2020 ? end?.pct_change_2007_2020 : end?.pct_change_2007_2023;
+
+          return {
+            boro,
+            yTop: yRow(boro) + (rowHeight - hScale(d2023.TotalRentStabUnits)) - 6,
+            text: pct != null ? `${pct.toFixed(1)}% since 2007` : "—"
+          };
+        });
+
+        const lblSel = gLabels.selectAll("text.lossLabel").data(labelsData, d => d.boro);
+        lblSel.join(
+          enter => enter.append("text")
+            .attr("class", "lossLabel")
+            .attr("x", x(2023) + x.bandwidth() / 2 + 25)
+            .attr("y", d => d.yTop + 10)
+            .attr("fill", d => colors.get(d.boro))
+            .attr("opacity", 0)
+            .text(d => d.text)
+            .call(e => e.transition(Tbars()).attr("y", d => d.yTop).attr("opacity", 1)),
+          update => update.transition(Tbars())
+            .attr("y", d => d.yTop)
+            .attr("fill", d => colors.get(d.boro))
+            .tween("text", function (d) {
+              const self = d3.select(this);
+              const start = parseFloat(self.text());
+              const end = parseFloat(d.text);
+              if (isNaN(start) || isNaN(end)) return () => { };
+              const interp = d3.interpolateNumber(start, end);
+              return t => self.text(`${interp(t).toFixed(1)}% since 2007`);
+            }),
+          exit => exit.transition(Tbars()).attr("opacity", 0).remove()
+        );
+
+        /* Axis */
+        gAxis.selectAll("*").remove();
+        const keyYears = [2007, 2011, 2015, 2019, 2023];
+        gAxis.append("g")
+          .attr("transform", `translate(0,${height - M.bottom + 5})`)
+          .call(d3.axisBottom(x).tickValues(keyYears).tickFormat(d3.format("d")))
+          .call(g => g.selectAll("path,line").attr("stroke", "#ccc"))
+          .call(g => g.selectAll("text").attr("fill", "#777").attr("font-size", 11).attr("font-weight", 500));
+
+        /* Policy annotations */
+        gAnno.selectAll("*").remove();
+        const policies = [
+          { year: 2011, label: "Post-Recession\nRecovery", dx: -18, dy: -50 },
+          { year: 2019, label: "HSTPA\nEnacted", dx: -15, dy: -50 },
+          { year: 2020, label: "COVID-19\nPandemic", dx: 12, dy: -50 }
+        ];
+        gAnno.selectAll("line.policy")
+          .data(policies)
+          .join("line")
+          .attr("x1", d => x(d.year) + x.bandwidth() / 2)
+          .attr("x2", d => x(d.year) + x.bandwidth() / 2)
+          .attr("y1", M.top - 10)
+          .attr("y2", height - M.bottom + 5)
+          .attr("stroke", "#ccc")
+          .attr("stroke-dasharray", "3,3");
+
+        const anns = gAnno.selectAll("text.annotation")
+          .data(policies)
+          .join("text")
+          .attr("class", "annotation")
+          .attr("x", d => x(d.year) + d.dx)
+          .attr("y", d => M.top + d.dy);
+
+        anns.selectAll("tspan")
+          .data(d => d.label.split("\n"))
+          .join("tspan")
+          .attr("x", (t, i, nodes) =>
+            x(d3.select(nodes[i].parentNode).datum().year) +
+            d3.select(nodes[i].parentNode).datum().dx)
+          .attr("dy", (t, i) => i === 0 ? 0 : 12)
+          .text(t => t);
+      }
+
+      draw();
+
+      const exportFrame = document.getElementById("exportFrame");
+
+      document.getElementById("downloadPNG").onclick = () => {
+        domtoimage.toPng(exportFrame, { quality: 1, style: { background: "transparent" } })
+          .then(dataUrl => {
+            const link = document.createElement("a");
+            link.download = "rent_stab_boroughs.png";
+            link.href = dataUrl;
+            link.click();
+          });
+      };
+
+      document.getElementById("downloadSVG").onclick = () => {
+        const orig = document.getElementById("viz");
+        const clone = orig.cloneNode(true);
+
+        const serializer = new XMLSerializer();
+        const svgString = serializer.serializeToString(clone);
+
+        const blob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = "rent_stab_boroughs.svg";
+        link.click();
+      };
+    });
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>HSTPA Defense</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+      background: #f8f5f0;
+      color: #111;
+      margin: 0;
+      padding: 60px 40px;
+    }
+    h1 {
+      font-size: 28px;
+      margin-bottom: 4px;
+    }
+    p {
+      color: #555;
+      font-size: 15px;
+      margin-top: 0;
+    }
+    .gallery {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 24px;
+      margin-top: 40px;
+    }
+    .card {
+      background: #fff;
+      border: 1px solid #e2ded7;
+      border-radius: 12px;
+      padding: 20px;
+      text-decoration: none;
+      color: inherit;
+      transition: all 0.25s ease;
+    }
+    .card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 3px 14px rgba(0,0,0,0.08);
+    }
+    .card h2 {
+      font-size: 18px;
+      margin: 0 0 6px;
+      color: #2B4C7E;
+    }
+    .card p {
+      margin: 0;
+      color: #444;
+      font-size: 14px;
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+  <h1>HSTPA Defense</h1>
+  <p>Created by Itzamna Huerta <br> Analysis, Design, and Programming
+    <br>
+    Authored by Peter Estes
+    <br>
+    Published by ANHD
+  </p>
+
+
+  <div class="gallery">
+    <a class="card" href="rent-stab-by-boro/index.html">
+      <h2>Changes in Rent-Stabilized Units: 2007–2020 vs 2007–2023 (Before & After HSTPA)</h2>
+      <p>This interactive grid illustrates the year-to-year changes in the number of rent-stabilized units across New York City's five boroughs from 2007 to 2023. It offers a clear view of how rent-stabilized housing has evolved over the past 17 years, highlighting the shifts that occurred before and after the passage of HSTPA.</p>
+    </a>
+  
+    <a class="card" href="rent-stab-perc-bins/index.html">
+      <h2>Where Rent-Stabilized Buildings Are Located</h2>
+      <p>This interactive radial visualization shows the distribution of rent-stabilized buildings across New York City. Each circle represents a building, with its size corresponding to the percentage of rent-stabilized units it contains. The map also color-codes buildings by borough, offering insights into geographic concentrations and variations in stabilization rates. Click or hover over the circles to explore specific buildings and learn more about their stabilization rates and neighborhood details.</p>
+
+    </a>
+  </div>
+  
+</body>
+</html>
