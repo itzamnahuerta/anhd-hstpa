@@ -156,7 +156,7 @@
     <a href="../" class="noprint" style="font-size:13px;color:#2B4C7E;text-decoration:none;">← Back to Gallery</a>
     <br><br><br>
 
-    <h1>Rent-Stabilized Units Year-to-Year Change by Borough Covers 2007–2020 (Pre-HSTPA) and 2007–2023 (Post-HSTPA)
+    <h1>Rent-Stabilized Units Year-to-Year Change by Borough
     </h1>
 
     <p class="deck">
@@ -174,9 +174,9 @@
 
     <svg id="viz"></svg>
 
-    <p class="caption"><em>Source:</em> ANHD analysis of NYC Rent Guidelines Board data (2007–2023)</p>
+    <p class="caption"><em>Source:</em> ANHD analysis of DOF Data via JustFix (2007–2023) </p>
   </div>
-
+  
   <div class="tooltip" id="tooltip"></div>
 
   <script>
@@ -315,9 +315,6 @@
         `;
       }
 
-      /* ========================================================
-         COLOR FIX: WINDOW SLITS USE DIRECT RGBA (NO CSS var)
-         ======================================================== */
       function addWindowSlits(gBar, x0, topY, w, h, animate) {
         const slitSpacing = 6;
         const marginTop = 6;

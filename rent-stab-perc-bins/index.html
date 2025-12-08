@@ -26,8 +26,7 @@
       background: var(--paper);
       color: var(--ink);
       font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
-      height: 100%;
-      overflow: hidden;
+      min-height: 100%;
     }
 
     h1 {
@@ -97,6 +96,7 @@
       max-width: 1280px;
       height: 900px;
       cursor: default;
+      height: auto !important;
     }
 
     .tooltip {
@@ -183,6 +183,18 @@
       background: #dedcd9;
       border-color: #bbb;
     }
+    .caption {
+      color: var(--sub);
+      font-size: 13px;
+      margin-top: -8em;
+    }
+    .wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;   /* centers SVG + caption */
+      justify-content: flex-start;
+      
+    }
   </style>
 </head>
 
@@ -210,13 +222,16 @@
     <button id="saveSVG" class="export-btn">Download SVG</button>
   </div> -->
 
+  <div class="wrap">
+    <svg id="viz" preserveAspectRatio="xMidYMid meet">
+      <g class="viz-scale"></g>
+    </svg>
+  
+    <p class="caption"><em>Source:</em> ANHD analysis of DOF Data via JustFix (2007–2023) </p>
+  </div>
 
-  <svg id="viz" preserveAspectRatio="xMidYMid meet">
-    <g class="viz-scale"></g>
-  </svg>
 
   <div class="tooltip" style="opacity:0;"></div>
-
 
   <script>
     const width = 1280, height = 950;
